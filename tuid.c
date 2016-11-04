@@ -1,8 +1,11 @@
 #include "postgres.h"
 #include "fmgr.h"
+#include "utils/guc.h"
 #include "utils/builtins.h"
 #include "utils/uuid.h"
+#include "utils/timestamp.h"
 #include <time.h>
+#include <sys/time.h>
 
 /* Q. What is this?
  * A. A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random it is prefixed with
@@ -22,7 +25,7 @@ PG_MODULE_MAGIC;
 /* need a lock around these ... */
 static unsigned long __last = 0;
 static unsigned int __seq = 0;
-static unsigned short __node_id = 0;
+static int __node_id = 0;
 #define TUID_MAX_SEQ 0xFF
 
 /* Q. Why does seq exist?
@@ -37,9 +40,25 @@ static unsigned short __node_id = 0;
  *   the system time has "caught up") with seq 0.
  **/
 
-PG_FUNCTION_INFO_V1(tuid_set_node_id);
-PG_FUNCTION_INFO_V1(tuid_get_node_id);
 PG_FUNCTION_INFO_V1(tuid_generate);
+void _PG_init(void);
+
+void _PG_init(void){
+    DefineCustomIntVariable(
+        "tuid.node_id",
+        "node id for use in tuid generation",
+        NULL,
+        &__node_id,
+        0, // boot
+        0, // min
+        255, // max
+        PGC_SIGHUP,
+        0,
+        NULL,
+        NULL,
+        NULL
+    );
+}
 
 Datum
 tuid_set_node_id(PG_FUNCTION_ARGS) {
@@ -52,12 +71,18 @@ tuid_get_node_id(PG_FUNCTION_ARGS) {
     return UInt16GetDatum(__node_id);
 }
 
+// based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift
+static long get_current_unix_time_us()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000000) + tv.tv_usec;
+}
+
 Datum
 tuid_generate(PG_FUNCTION_ARGS)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    unsigned long t_us = (ts.tv_sec * 1000000) + (ts.tv_nsec/1000);
+    unsigned long t_us = (unsigned long)get_current_unix_time_us();
     unsigned long last;
     unsigned int seq;
     unsigned short node_id;
