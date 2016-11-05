@@ -1,11 +1,12 @@
+#include <time.h>
+#include <sys/time.h>
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/guc.h"
 #include "utils/builtins.h"
 #include "utils/uuid.h"
 #include "utils/timestamp.h"
-#include <time.h>
-#include <sys/time.h>
+#include "storage/lwlock.h"
 
 /* Q. What is this?
  * A. A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random it is prefixed with
@@ -22,11 +23,19 @@
 
 PG_MODULE_MAGIC;
 
-/* need a lock around these ... */
-static unsigned long __last = 0;
-static unsigned int __seq = 0;
-static int __node_id = 0;
 #define TUID_MAX_SEQ 0xFF
+typedef struct tuid_state {
+    LWLock *lock;
+    unsigned long last;
+    unsigned int seq;
+} tuid_state_t;
+
+static tuid_state_t tuid_state = {
+    NULL,
+    0,
+    0
+};
+static int __node_id = 0;
 
 /* Q. Why does seq exist?
  * A. Clock sync can (in theory) cause time to move backwards by a small amount. When that happens we fall back
@@ -43,7 +52,8 @@ static int __node_id = 0;
 PG_FUNCTION_INFO_V1(tuid_generate);
 void _PG_init(void);
 
-void _PG_init(void){
+void _PG_init(void)
+{
     DefineCustomIntVariable(
         "tuid.node_id",
         "node id for use in tuid generation",
@@ -60,17 +70,6 @@ void _PG_init(void){
     );
 }
 
-Datum
-tuid_set_node_id(PG_FUNCTION_ARGS) {
-    __node_id=PG_GETARG_UINT16(0);
-    return UInt16GetDatum(__node_id);
-}
-
-Datum
-tuid_get_node_id(PG_FUNCTION_ARGS) {
-    return UInt16GetDatum(__node_id);
-}
-
 // based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift
 static long get_current_unix_time_us()
 {
@@ -85,24 +84,20 @@ tuid_generate(PG_FUNCTION_ARGS)
     unsigned long t_us = (unsigned long)get_current_unix_time_us();
     unsigned long last;
     unsigned int seq;
-    unsigned short node_id;
+    unsigned short node_id = __node_id;
 
     // need a lock around this
-    node_id = __node_id;
-    if (t_us <= __last) {
-        if (__seq > TUID_MAX_SEQ) {
-            __seq=0;
-            seq=0;
-            last=++__last;
+    if (t_us <= tuid_state.last) {
+        if (tuid_state.seq > TUID_MAX_SEQ) {
+            seq = tuid_state.seq =0;
+            last = ++tuid_state.last;
         } else {
-            seq=++__seq;
-            last=__last;
+            seq = ++tuid_state.seq;
+            last = tuid_state.last;
         }
     } else {
-        __seq=0;
-        seq=0;
-        __last = t_us;
-        last = t_us;
+        seq = tuid_state.seq = 0;
+        last = tuid_state.last = t_us;
     }
 
     // 01234567-0123-0123-0123-0123456789ab\0
