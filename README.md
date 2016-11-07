@@ -20,8 +20,10 @@ locality. (This benefit also extends in general in that most data that is relate
 ## installing
 
 `make install` and then edit your `postgresql.conf` file, adding:
+
     shared_preload_libraries = 'tuid'
     tuid.node_id = 0
+    
 and then restart postgresql.
 
 If you run multiple databases set them to different `tuid.node_id` values (0 to 255) if you plan to mix data between them. This will ensure uniqueness across them. (Even without doing that odds are very unlikely you'll get a collison anyways.)
