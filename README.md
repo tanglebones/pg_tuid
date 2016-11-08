@@ -6,7 +6,7 @@ A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random
 the time since epoch in microseconds, a sequence number (if generating more than one per microsecond, or
 waiting for clock rollback to catchup), and a node id.
 
-## Why would use use this over a UUIDv4?
+## Why use this over a UUIDv4?
 UUIDv4 is completely random, so if you have a table with a lot of entries using UUIDv4 in an index leads to
 some performance issues. The main issue is new rows being inserted can cause an update to an index in a random
 location. This defeats caching of index entries. By ensuring the ids are generally monotonically increasing
