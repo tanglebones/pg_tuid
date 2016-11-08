@@ -126,7 +126,7 @@ tuid_generate(PG_FUNCTION_ARGS)
     unsigned long t_us = (unsigned long)get_current_unix_time_us();
     unsigned long last;
     unsigned int seq;
-    unsigned short node_id = __node_id;
+    unsigned short node_id = __node_id&0xff;
 
     LWLockAcquire(tuid_state->lock, LW_EXCLUSIVE);
     if (t_us <= tuid_state->last) {
@@ -143,19 +143,24 @@ tuid_generate(PG_FUNCTION_ARGS)
     }
     LWLockRelease(tuid_state->lock);
 
-    // 01234567-0123-0123-0123-0123456789ab\0
-    // 1234567890123456789012345678901234567 890
-    //          1         2         3          4
+    // 01234567-0123-0123-    0     1     2     3 -    0     1 23456789ab\0
+    // TTTTTTTT-TTTT-4TTT-(10tt)(ttss)(ssss)(ssnn)-(nnnn)(nnrr)RRRRRRRRRR\0
     char buffer[40];
     unsigned int rand1 = arc4random();
     unsigned int rand2 = arc4random();
 
-    unsigned int a=(last>>32);
-    unsigned int b=(last>>16)&0xffff;
-    unsigned int c=0x4000 | (((last>>4)&0x0fff));
-    unsigned int d=0x8000 | ((last&0xf)<<10) | ((seq>>6)&0x7f);
-    unsigned int e=((seq<<10)&0xfc00) | (node_id<<2) | (rand1>>16&3);
-    unsigned int f=rand2;
+    unsigned int a=(last>>32); // time bits 63..32
+    unsigned int b=(last>>16)&0xffff; // time bits 31..16
+    unsigned int c=0x4000 | (((last>>4)&0x0fff)); // 0100b | time bits 15..4
+    unsigned int d=0x8000 | ((last&0xf)<<10) | (seq<<2) | ( node_id>>6); // 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6
+    unsigned int e=((node_id&0x3f)<<2) | (rand1&0x3ff); // node_id bits 5..0 | rand1 bits 10..0
+    unsigned int f=rand2; // 32 bits of rand2
+
+    // 64 bits of time
+    // 6 bits of UUID version markers
+    // 8 bits of seq
+    // 8 bits of node_id
+    // 42 bits of random
 
     snprintf(
         buffer,
