@@ -30,7 +30,7 @@ PG_MODULE_MAGIC;
 #define TUID_MAX_SEQ 0xFF
 typedef struct tuid_state {
     LWLock *lock;
-    unsigned long last;
+    uint64 last;
     unsigned int seq;
 } tuid_state_t;
 
@@ -72,9 +72,9 @@ void _PG_init(void)
         "node id for use in tuid generation",
         NULL,
         &__node_id,
-        0, // boot
-        0, // min
-        255, // max
+        0, /* boot */
+        0, /* min */
+        255, /* max */
         PGC_SIGHUP,
         0,
         NULL,
@@ -112,19 +112,21 @@ static void tuid_shmem_startup()
     LWLockRelease(AddinShmemInitLock);
 }
 
-// based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift
-static long get_current_unix_time_us()
+/* based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift */
+static uint64 get_current_unix_time_us()
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (tv.tv_sec * 1000000) + tv.tv_usec;
+    uint64 sec = (uint64)tv.tv_sec;
+    uint64 usec = (uint64)tv.tv_usec;
+    return (sec * 1000000) + usec;
 }
 
 Datum
 tuid_generate(PG_FUNCTION_ARGS)
 {
-    unsigned long t_us = (unsigned long)get_current_unix_time_us();
-    unsigned long last;
+    uint64 t_us = get_current_unix_time_us();
+    uint64 last;
     unsigned int seq;
     unsigned short node_id = __node_id&0xff;
 
@@ -143,24 +145,30 @@ tuid_generate(PG_FUNCTION_ARGS)
     }
     LWLockRelease(tuid_state->lock);
 
-    // 01234567-0123-0123-    0     1     2     3 -    0     1 23456789ab\0
-    // TTTTTTTT-TTTT-4TTT-(10tt)(ttss)(ssss)(ssnn)-(nnnn)(nnrr)RRRRRRRRRR\0
+    /*
+      01234567-0123-0123-    0     1     2     3 -    0     1 23456789ab\0
+      TTTTTTTT-TTTT-4TTT-(10tt)(ttss)(ssss)(ssnn)-(nnnn)(nnrr)RRRRRRRRRR\0
+
+      The 4 and 10 hard coded into the above are the version bits for UUID4
+    */
     char buffer[40];
     unsigned int rand1 = arc4random();
     unsigned int rand2 = arc4random();
 
-    unsigned int a=(last>>32); // time bits 63..32
-    unsigned int b=(last>>16)&0xffff; // time bits 31..16
-    unsigned int c=0x4000 | (((last>>4)&0x0fff)); // 0100b | time bits 15..4
-    unsigned int d=0x8000 | ((last&0xf)<<10) | (seq<<2) | ( node_id>>6); // 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6
-    unsigned int e=((node_id&0x3f)<<2) | (rand1&0x3ff); // node_id bits 5..0 | rand1 bits 10..0
-    unsigned int f=rand2; // 32 bits of rand2
+    unsigned int a=(last>>32); /* time bits 63..32 */
+    unsigned int b=(last>>16)&0xffff; /* time bits 31..16 */
+    unsigned int c=0x4000 | (((last>>4)&0x0fff)); /* 0100b | time bits 15..4 */
+    unsigned int d=0x8000 | ((last&0xf)<<10) | (seq<<2) | ( node_id>>6); /* 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6 */
+    unsigned int e=((node_id&0x3f)<<2) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
+    unsigned int f=rand2; /* 32 bits of rand2 */
 
-    // 64 bits of time
-    // 6 bits of UUID version markers
-    // 8 bits of seq
-    // 8 bits of node_id
-    // 42 bits of random
+    /*
+      64 bits of time
+      6 bits of UUID version markers
+      8 bits of seq
+      8 bits of node_id
+      42 bits of random
+    */
 
     snprintf(
         buffer,
