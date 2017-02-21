@@ -6,16 +6,16 @@ A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random
 the time since epoch in microseconds, a sequence number (if generating more than one per microsecond, or
 waiting for clock rollback to catchup), and a node id.
 
-## Why use this over a UUIDv4?
-UUIDv4 is completely random, so if you have a table with a lot of entries using UUIDv4 in an index leads to
+## Why use a TUID instead of a UUIDv4?
+UUIDv4 is completely random, so if you have a table with a lot of entries using UUIDv4 in an index it leads to
 some performance issues. The main issue is new rows being inserted can cause an update to an index in a random
 location. This defeats caching of index entries. By ensuring the ids are generally monotonically increasing
 the entries added will be locally at the "head" of the index and multiple inserts will benefit from cache
-locality. (This benefit also extends in general in that most data that is related is created at the same time.)
+locality. (This benefit also extends in general, in that most data that is related is created at the same time.)
 
 ## tuid_generate()
 
-`tuid_generate()` returns a `uuid` (in v4 format), but instead of being purely random it encoding the current time since epoch (in microseconds) into the msb. This generates `uuid`s that are generally monotonically increasing with time, leading to better data locality (basically, inserts should be faster as the index node being updated will be in cache more often).
+`tuid_generate()` returns a new TUID, which you can store in a `uuid` field.
 
 ## installing
 
@@ -26,9 +26,36 @@ locality. (This benefit also extends in general in that most data that is relate
     
 and then restart postgresql.
 
-If you run multiple databases set them to different `tuid.node_id` values (0 to 255) if you plan to mix data between them. This will ensure uniqueness across them. (Even without doing that odds are very unlikely you'll get a collison anyways.)
+If you run multiple databases set them to have different `tuid.node_id` values (0 to 255) if you plan to mix data
+between them. Using different `node_id`s will ensure nodes are guaranteed uniqueness across them. If you plan to
+generate TUIDs in client code (samples code for doing so in included in the sub-directories) you can reserve node_id
+255 for client generated ids.
+
+## Discussion
+
+Strickly speaking partitioning the space by `node_id` is overkill as there is no hardware in existences that can 
+generate enough tuids fast enough to have any reasonable chance of a collision given the number of random bits in
+the TUID structure, and than they are prefixed by milliseconds. If you can sell the mathematics, you can replace
+the node id with randomness in the client generation code. The use of `node_id` was included more to deal with
+political "it could collide, so it's unsafe" arguements that have been used against uuids in the past.
+
+The c# client code example correctly handles thread safety and clock roll back (using sequence numbering if the
+clock time goes backwards to allow for faster catch up). The pure SQL, ruby, and js examples set sequence to 0 or
+255, but you could instead use a random number here as well.
+
+Even though the c# client code handles clock roll back you should assume multiple clients will be talking to the
+database and since each is using their own clock there will be drift in the prefixes; this will be true *even* if
+you use a time synchronization system (ntpd, etc.) as a true synchronization is impossible. Time drift is usually
+not a problem unless you're relying on the order of the ids to be absolutely ascending; if you are then use the
+pure sql or c extension and have the database create the ids centrally instead of doing it in the client.
+
+The main benefit of generating ids in the client is the work is offloaded from the database and the client doesn't
+have to wait on the database to get ids for entries. That means you can create all the entries and their relations
+up front and submit them in a single batch, since the ids needed to setup the relationships are all generated
+locally on the client.
 
 ## issues
 
-- I've no idea how to test the shmem and lwlock logic.
+- I've no idea how to test the shmem and lwlock logic. So far my manual testing indicates it is working fine, but
+a more throughout real world test should be carried out.
 
