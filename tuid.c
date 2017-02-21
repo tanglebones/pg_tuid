@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <time.h>
 #include <sys/time.h>
 #include "postgres.h"
@@ -112,15 +113,29 @@ static void tuid_shmem_startup()
     LWLockRelease(AddinShmemInitLock);
 }
 
-/* based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift */
-static uint64 get_current_unix_time_us()
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    uint64 sec = (uint64)tv.tv_sec;
-    uint64 usec = (uint64)tv.tv_usec;
-    return (sec * 1000000) + usec;
-}
+#ifdef _POSIX_TIMERS
+    /* #pragma message ( "Using clock_gettime" ) */
+
+    static uint64 get_current_unix_time_us()
+    {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        uint64 sec = (uint64)ts.tv_sec;
+        uint64 nsec = (uint64)ts.tv_nsec;
+        return (sec * 1000000) + nsec/1000;
+    }
+#else
+    /* #pragma message ( "Using gettimeofday" ) */
+    /* based on GetCurrentIntegerTimestamp but without the POSTGRES_EPOCH_JDATE shift */
+    static uint64 get_current_unix_time_us()
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        uint64 sec = (uint64)tv.tv_sec;
+        uint64 usec = (uint64)tv.tv_usec;
+        return (sec * 1000000) + usec;
+    }
+#endif
 
 Datum
 tuid_generate(PG_FUNCTION_ARGS)
