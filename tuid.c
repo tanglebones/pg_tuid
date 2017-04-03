@@ -83,7 +83,7 @@ void _PG_init(void)
         NULL
     );
     RequestAddinShmemSpace(tuid_state_memsize());
-    RequestAddinLWLocks(1);
+    RequestNamedLWLockTranche(TUID_SHMEM_NAME, 1);
     prev_shmem_startup_hook = shmem_startup_hook;
     shmem_startup_hook = tuid_shmem_startup;
 
@@ -98,19 +98,22 @@ void _PG_fini(void)
 
 static void tuid_shmem_startup()
 {
-    bool found;
-    tuid_state = NULL;
-    if (prev_shmem_startup_hook) {
-        prev_shmem_startup_hook();
+    if (!tuid_state) {
+        bool found;
+        tuid_state = NULL;
+        if (prev_shmem_startup_hook) {
+            prev_shmem_startup_hook();
+        }
+        LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+        tuid_state = ShmemInitStruct(TUID_SHMEM_NAME, sizeof(tuid_state_t), &found);
+        if (!found) {
+            // !found means the structure was just allocated, so initialize it.
+            tuid_state->last=0;
+            tuid_state->seq=0;
+            tuid_state->lock=&(GetNamedLWLockTranche(TUID_SHMEM_NAME))->lock;
+        }
+        LWLockRelease(AddinShmemInitLock);
     }
-    LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
-    tuid_state = ShmemInitStruct(TUID_SHMEM_NAME, sizeof(tuid_state_t),&found);
-    if (!found) {
-        tuid_state->last=0;
-        tuid_state->seq=0;
-        tuid_state->lock=LWLockAssign();
-    }
-    LWLockRelease(AddinShmemInitLock);
 }
 
 #ifdef _POSIX_TIMERS
