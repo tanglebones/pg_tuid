@@ -68,6 +68,8 @@ static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
 
 void _PG_init(void)
 {
+    elog(LOG, "pg_tuid init");
+
     DefineCustomIntVariable(
         "tuid.node_id",
         "node id for use in tuid generation",
@@ -84,9 +86,9 @@ void _PG_init(void)
     );
     RequestAddinShmemSpace(tuid_state_memsize());
     RequestNamedLWLockTranche(TUID_SHMEM_NAME, 1);
+
     prev_shmem_startup_hook = shmem_startup_hook;
     shmem_startup_hook = tuid_shmem_startup;
-
 }
 
 void _PG_fini(void)
@@ -98,6 +100,7 @@ void _PG_fini(void)
 
 static void tuid_shmem_startup()
 {
+    elog(LOG, "pg_tuid tuid_shmem_startup");
     if (!tuid_state) {
         bool found;
         tuid_state = NULL;
@@ -106,11 +109,17 @@ static void tuid_shmem_startup()
         }
         LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
         tuid_state = ShmemInitStruct(TUID_SHMEM_NAME, sizeof(tuid_state_t), &found);
+        if (tuid_state == NULL) {
+          elog(ERROR, "ShmemInitStruct returned NULL");
+        }
         if (!found) {
             // !found means the structure was just allocated, so initialize it.
             tuid_state->last=0;
             tuid_state->seq=0;
             tuid_state->lock=&(GetNamedLWLockTranche(TUID_SHMEM_NAME))->lock;
+	    if (tuid_state->lock == NULL) {
+              elog(ERROR, "GetNamedLWLockTranche returned NULL");
+            }
         }
         LWLockRelease(AddinShmemInitLock);
     }
@@ -147,6 +156,10 @@ tuid_generate(PG_FUNCTION_ARGS)
     uint64 last;
     unsigned int seq;
     unsigned short node_id = __node_id&0xff;
+
+    if (tuid_state == NULL) {
+      elog(ERROR, "tuid_generate: tuid_state is NULL! did you remember to add 'tuid' to the shared_preload_libraries?");
+    }
 
     LWLockAcquire(tuid_state->lock, LW_EXCLUSIVE);
     if (t_us <= tuid_state->last) {
