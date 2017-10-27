@@ -33,3 +33,6 @@
 *.su
 
 .idea/
+
+# osx shite
+.DS_Store
