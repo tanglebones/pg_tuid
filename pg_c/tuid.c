@@ -152,6 +152,17 @@ static void tuid_shmem_startup()
     }
 #endif
 
+unsigned int random_unsigned_int(void)
+{
+  unsigned int r;
+  if (!pg_strong_random(&r, sizeof(r)))
+  {
+    elog(ERROR, "tuid_generate: pg_strong_random failed!");
+    return 0;
+  }
+  return r;
+}
+
 Datum
 tuid_generate(PG_FUNCTION_ARGS)
 {
@@ -195,8 +206,8 @@ tuid_generate(PG_FUNCTION_ARGS)
 
       The 4 and 10 hard coded into the above are the version bits for UUID4
     */
-    rand1 = arc4random();
-    rand2 = arc4random();
+    rand1 = random_unsigned_int();
+    rand2 = random_unsigned_int();
 
     a = (last>>32); /* time bits 63..32 */
     b = (last>>16)&0xffff; /* time bits 31..16 */
