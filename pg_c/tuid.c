@@ -131,9 +131,12 @@ static void tuid_shmem_startup()
     static uint64 get_current_unix_time_us()
     {
         struct timespec ts;
+        uint64 sec;
+        uint64 nsec;
+
         clock_gettime(CLOCK_REALTIME, &ts);
-        uint64 sec = (uint64)ts.tv_sec;
-        uint64 nsec = (uint64)ts.tv_nsec;
+        sec = (uint64)ts.tv_sec;
+        nsec = (uint64)ts.tv_nsec;
         return (sec * 1000000) + nsec/1000;
     }
 #else
@@ -156,6 +159,16 @@ tuid_generate(PG_FUNCTION_ARGS)
     uint64 last;
     unsigned int seq;
     unsigned short node_id = __node_id&0xff;
+    char buffer[40];
+    unsigned int rand1;
+    unsigned int rand2;
+
+    unsigned int a;
+    unsigned int b;
+    unsigned int c;
+    unsigned int d;
+    unsigned int e;
+    unsigned int f;
 
     if (tuid_state == NULL) {
       elog(ERROR, "tuid_generate: tuid_state is NULL! did you remember to add 'tuid' to the shared_preload_libraries?");
@@ -182,16 +195,15 @@ tuid_generate(PG_FUNCTION_ARGS)
 
       The 4 and 10 hard coded into the above are the version bits for UUID4
     */
-    char buffer[40];
-    unsigned int rand1 = arc4random();
-    unsigned int rand2 = arc4random();
+    rand1 = arc4random();
+    rand2 = arc4random();
 
-    unsigned int a=(last>>32); /* time bits 63..32 */
-    unsigned int b=(last>>16)&0xffff; /* time bits 31..16 */
-    unsigned int c=0x4000 | (((last>>4)&0x0fff)); /* 0100b | time bits 15..4 */
-    unsigned int d=0x8000 | ((last&0xf)<<10) | (seq<<2) | ( node_id>>6); /* 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6 */
-    unsigned int e=((node_id&0x3f)<<2) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
-    unsigned int f=rand2; /* 32 bits of rand2 */
+    a = (last>>32); /* time bits 63..32 */
+    b = (last>>16)&0xffff; /* time bits 31..16 */
+    c = 0x4000 | (((last>>4)&0x0fff)); /* 0100b | time bits 15..4 */
+    d = 0x8000 | ((last&0xf)<<10) | (seq<<2) | ( node_id>>6); /* 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6 */
+    e = ((node_id&0x3f)<<2) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
+    f = rand2; /* 32 bits of rand2 */
 
     /*
       64 bits of time
