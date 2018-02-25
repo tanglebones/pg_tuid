@@ -7,6 +7,7 @@
 #include "utils/builtins.h"
 #include "utils/uuid.h"
 #include "utils/timestamp.h"
+#include "utils/backend_random.h"
 #include "storage/lwlock.h"
 #include "storage/lmgr.h"
 #include "storage/ipc.h"
@@ -55,6 +56,7 @@ void _PG_init(void);
 void _PG_fini(void);
 static Size tuid_state_memsize(void);
 static void tuid_shmem_startup(void);
+unsigned int random_unsigned_int(void);
 
 static Size
 tuid_state_memsize(void) {
@@ -155,9 +157,9 @@ static void tuid_shmem_startup()
 unsigned int random_unsigned_int(void)
 {
   unsigned int r;
-  if (!pg_strong_random(&r, sizeof(r)))
+  if (!pg_backend_random((char*)&r, sizeof(r)))
   {
-    elog(ERROR, "tuid_generate: pg_strong_random failed!");
+    elog(ERROR, "tuid_generate: pg_backend_random failed!");
     return 0;
   }
   return r;
