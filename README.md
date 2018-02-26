@@ -26,8 +26,16 @@ locality. (This benefit also extends in general, in that most data that is relat
     
 and then restart postgresql.
 
+You need to do:
+
+    CREATE EXTENSION tuid;
+
+to enable the extension in your schema.
+
+After that `tuid_generate()` will be available.
+
 If you run multiple databases set them to have different `tuid.node_id` values (0 to 255) if you plan to mix data
-between them. Using different `node_id`s will ensure nodes are guaranteed uniqueness across them. If you plan to
+between them. Using different `node_id`s will ensure the tuids have guaranteed uniqueness across them. If you plan to
 generate TUIDs in client code (samples code for doing so in included in the sub-directories) you can reserve node_id
 255 for client generated ids.
 
@@ -59,3 +67,8 @@ locally on the client.
 - I've no idea how to test the shmem and lwlock logic. So far my manual testing indicates it is working fine, but
 a more throughout real world test should be carried out.
 
+- Compatability with various versions of *nix and postgresql isn't tested for the pg_c version. While I've tried
+to only use code that is specific to what postgresql already supports there is always a chance it won't compile
+or work on a particular *nix or that postgresql will break/change the functions I'm depending on. If you run
+into problems with any of the version please file an issue and I will take a look at fixing it. You really only
+need the C code version if you plan to generate a lot of tuids quickly (it is ~100x faster than the sql version).
