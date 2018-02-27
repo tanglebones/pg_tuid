@@ -52,6 +52,8 @@ static int __node_id = 0;
  **/
 
 PG_FUNCTION_INFO_V1(tuid_generate);
+PG_FUNCTION_INFO_V1(tuid_ar_generate);
+PG_FUNCTION_INFO_V1(stuid_generate);
 void _PG_init(void);
 void _PG_fini(void);
 static Size tuid_state_memsize(void);
@@ -235,3 +237,89 @@ tuid_generate(PG_FUNCTION_ARGS)
 
     return DirectFunctionCall1(uuid_in, CStringGetDatum(buffer));
 }
+
+Datum
+tuid_ar_generate(PG_FUNCTION_ARGS)
+{
+    uint64 t_us;
+    unsigned int seq;
+    unsigned int node_id;
+    char buffer[40];
+    unsigned int rand1;
+    unsigned int rand2;
+
+    unsigned int a;
+    unsigned int b;
+    unsigned int c;
+    unsigned int d;
+    unsigned int e;
+    unsigned int f;
+
+    t_us = get_current_unix_time_us();
+    seq = random_unsigned_int();
+    node_id = seq >> 16;
+    seq &= 0xff;
+    node_id &= 0xff;
+
+    if (tuid_state == NULL) {
+      elog(ERROR, "tuid_generate: tuid_state is NULL! did you remember to add 'tuid' to the shared_preload_libraries?");
+    }
+
+    /*
+      01234567-0123-0123-    0     1     2     3 -    0     1 23456789ab\0
+      TTTTTTTT-TTTT-4TTT-(10tt)(ttss)(ssss)(ssnn)-(nnnn)(nnrr)RRRRRRRRRR\0
+
+      The 4 and 10 hard coded into the above are the version bits for UUID4
+    */
+    rand1 = random_unsigned_int();
+    rand2 = random_unsigned_int();
+
+    a = (t_us>>32); /* time bits 63..32 */
+    b = (t_us>>16)&0xffff; /* time bits 31..16 */
+    c = 0x4000 | (((t_us>>4)&0x0fff)); /* 0100b | time bits 15..4 */
+    d = 0x8000 | ((t_us&0xf)<<10) | (seq<<2) | ( node_id>>6); /* 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6 */
+    e = ((node_id&0x3f)<<2) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
+    f = rand2; /* 32 bits of rand2 */
+
+    /*
+      64 bits of time
+      6 bits of UUID version markers
+      8 bits of random
+      8 bits of random
+      42 bits of random
+    */
+
+    snprintf(
+        buffer,
+        sizeof(buffer),
+        "%08x-%04x-%04x-%04x-%04x%08x",
+        a,b,c,d,e,f
+    );
+
+    return DirectFunctionCall1(uuid_in, CStringGetDatum(buffer));
+}
+
+Datum
+stuid_generate(PG_FUNCTION_ARGS)
+{
+    bytea *res;
+    int length = VARHDRSZ + 32;
+    res = palloc(length);
+    SET_VARSIZE(res, length);
+    char * vd = VARDATA(res);
+    uint64 us = get_current_unix_time_us();
+
+    pg_backend_random(vd+8, 24);
+
+    vd[0] = us>>56;
+    vd[1] = us>>48;
+    vd[2] = us>>40;
+    vd[3] = us>>32;
+    vd[4] = us>>24;
+    vd[5] = us>>16;
+    vd[6] = us>>8;
+    vd[7] = us;
+
+    PG_RETURN_BYTEA_P(res);
+}
+
