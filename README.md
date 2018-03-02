@@ -17,6 +17,14 @@ locality. (This benefit also extends in general, in that most data that is relat
 
 `tuid_generate()` returns a new TUID, which you can store in a `uuid` field.
 
+## tuid_ar_generate()
+
+`tuid_ar_generate()` returns a new TUID, which you can store in a `uuid` field. This version uses random for the node and seq bits avoiding the lw lock. In practice it's not any faster, but if you are not using the node and seq fields you might as well get some more randomness.
+
+## stuid_generate()
+
+`stuid_generate()` returns a 32 byte bytea with 64 bits of time prefix (microseconds) and 192 bits of randomness, i.e. a "secure" tuid. This is enough randomness for use in session ids (consider storing session ids in an unlogged table, and consider using a hash index for the lookup).
+
 ## installing
 
 `make install` and then edit your `postgresql.conf` file, adding:
