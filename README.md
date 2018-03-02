@@ -75,8 +75,8 @@ locally on the client.
 - I've no idea how to test the shmem and lwlock logic. So far my manual testing indicates it is working fine, but
 a more throughout real world test should be carried out.
 
-- Compatability with various versions of *nix and postgresql isn't tested for the pg_c version. While I've tried
+- Compatability with various versions of \*nix and postgresql isn't tested for the pg_c version. While I've tried
 to only use code that is specific to what postgresql already supports there is always a chance it won't compile
-or work on a particular *nix or that postgresql will break/change the functions I'm depending on. If you run
-into problems with any of the version please file an issue and I will take a look at fixing it. You really only
+or work on a particular \*nix or that postgresql will break/change the functions I'm depending on. If you run
+into problems with any of the versions please file an issue and I will take a look at fixing it. You really only
 need the C code version if you plan to generate a lot of tuids quickly (it is ~100x faster than the sql version).
