@@ -1,5 +1,5 @@
 EXTENSION = tuid        # the extensions name
-DATA = tuid--0.0.2.sql  # script files to install
+DATA = tuid--0.0.3.sql  # script files to install
 REGRESS = tuid_test     # our test script file (without extension)
 MODULES = tuid          # our c module file to build
 

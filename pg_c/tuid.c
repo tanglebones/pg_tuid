@@ -170,11 +170,12 @@ unsigned int random_unsigned_int(void)
 Datum
 tuid_generate(PG_FUNCTION_ARGS)
 {
+    uint8* buffer = (uint8*) palloc(UUID_LEN);
+
     uint64 t_us = get_current_unix_time_us();
     uint64 last;
     unsigned int seq;
     unsigned short node_id = __node_id&0xff;
-    char buffer[40];
     unsigned int rand1;
     unsigned int rand2;
 
@@ -228,23 +229,39 @@ tuid_generate(PG_FUNCTION_ARGS)
       42 bits of random
     */
 
-    snprintf(
-        buffer,
-        sizeof(buffer),
-        "%08x-%04x-%04x-%04x-%04x%08x",
-        a,b,c,d,e,f
-    );
+    buffer[0] = (a>>24)&0xff;
+    buffer[1] = (a>>16)&0xff;
+    buffer[2] = (a>>8)&0xff;
+    buffer[3] = a&0xff;
 
-    return DirectFunctionCall1(uuid_in, CStringGetDatum(buffer));
+    buffer[4] = (b>>8)&0xff;
+    buffer[5] = b&0xff;
+
+    buffer[6] = (c>>8)&0xff;
+    buffer[7] = c&0xff;
+
+    buffer[8] = (d>>8)&0xff;
+    buffer[9] = d&0xff;
+
+    buffer[10] = (e>>8)&0xff;
+    buffer[11] = e&0xff;
+
+    buffer[12] = (f>>24)&0xff;
+    buffer[13] = (f>>16)&0xff;
+
+    buffer[14] = (f>>8)&0xff;
+    buffer[15] = f&0xff;
+
+    PG_RETURN_UUID_P((pg_uuid_t *) buffer);
 }
 
 Datum
 tuid_ar_generate(PG_FUNCTION_ARGS)
 {
+    uint8* buffer = (uint8*) palloc(UUID_LEN);
     uint64 t_us;
     unsigned int seq;
     unsigned int node_id;
-    char buffer[40];
     unsigned int rand1;
     unsigned int rand2;
 
@@ -289,14 +306,30 @@ tuid_ar_generate(PG_FUNCTION_ARGS)
       42 bits of random
     */
 
-    snprintf(
-        buffer,
-        sizeof(buffer),
-        "%08x-%04x-%04x-%04x-%04x%08x",
-        a,b,c,d,e,f
-    );
+    buffer[0] = (a>>24)&0xff;
+    buffer[1] = (a>>16)&0xff;
+    buffer[2] = (a>>8)&0xff;
+    buffer[3] = a&0xff;
 
-    return DirectFunctionCall1(uuid_in, CStringGetDatum(buffer));
+    buffer[4] = (b>>8)&0xff;
+    buffer[5] = b&0xff;
+
+    buffer[6] = (c>>8)&0xff;
+    buffer[7] = c&0xff;
+
+    buffer[8] = (d>>8)&0xff;
+    buffer[9] = d&0xff;
+
+    buffer[10] = (e>>8)&0xff;
+    buffer[11] = e&0xff;
+
+    buffer[12] = (f>>24)&0xff;
+    buffer[13] = (f>>16)&0xff;
+
+    buffer[14] = (f>>8)&0xff;
+    buffer[15] = f&0xff;
+
+    PG_RETURN_UUID_P((pg_uuid_t *) buffer);
 }
 
 Datum
