@@ -49,11 +49,10 @@ generate TUIDs in client code (samples code for doing so in included in the sub-
 
 ## Discussion
 
-Strickly speaking partitioning the space by `node_id` is overkill as there is no hardware in existences that can 
-generate enough tuids fast enough to have any reasonable chance of a collision given the number of random bits in
-the TUID structure, and than they are prefixed by milliseconds. If you can sell the mathematics, you can replace
-the node id with randomness in the client generation code. The use of `node_id` was included more to deal with
-political "it could collide, so it's unsafe" arguements that have been used against uuids in the past.
+Including the generator node ID enforces a node-level uniqueness guarantee when combined with the timestamp and
+sub-time-interval incrementing. The random bits aren't strictly needed anymore at that point, but having additional
+random bits enables semi-safe generation on the client side for cases where you have no ability or desire to add
+client node ID assignment code to the server.
 
 The c# client code example correctly handles thread safety and clock roll back (using sequence numbering if the
 clock time goes backwards to allow for faster catch up). The pure SQL, ruby, and js examples set sequence to 0 or
