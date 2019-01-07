@@ -3,8 +3,8 @@ tuid_generate() function for postgres
 
 ## What is this?
 A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random it is prefixed with
-the time since epoch in microseconds, a sequence number (if generating more than one per microsecond, or
-waiting for clock rollback to catchup), and a node id.
+the time since epoch in microseconds, a sequence number (if generating more then one per microsecond, or
+waiting for clock rollback to catch up), and node id.
 
 ## Why use a TUID instead of a UUIDv4?
 UUIDv4 is completely random, so if you have a table with a lot of entries using UUIDv4 in an index it leads to
@@ -19,7 +19,7 @@ locality. (This benefit also extends in general, in that most data that is relat
 
 ## tuid_ar_generate()
 
-`tuid_ar_generate()` returns a new TUID, which you can store in a `uuid` field. This version uses random for the node and seq bits avoiding the lw lock. In practice it's not any faster, but if you are not using the node and seq fields you might as well get some more randomness.
+`tuid_ar_generate()` returns a new TUID, which you can store in a `uuid` field. This version uses random for the node and seq bits avoiding the lw lock and runs faster.
 
 ## stuid_generate()
 
@@ -49,26 +49,15 @@ generate TUIDs in client code (samples code for doing so in included in the sub-
 
 ## Discussion
 
-Strickly speaking partitioning the space by `node_id` is overkill as there is no hardware in existences that can 
-generate enough tuids fast enough to have any reasonable chance of a collision given the number of random bits in
-the TUID structure, and than they are prefixed by milliseconds. If you can sell the mathematics, you can replace
-the node id with randomness in the client generation code. The use of `node_id` was included more to deal with
-political "it could collide, so it's unsafe" arguements that have been used against uuids in the past.
+The use of `node_id` and `sequence_number` was included more to deal with political "it could collide, so it's unsafe" arguments that have been used against UUIDs in the past. If you _absolutely_ require the IDs be unique then use `generate_tuid`, assign each DB instance a unique `node_id` and only generate them using the DB. This is still better than using an auto-incrementing integer because the TUIDs are not in a compact space (as there are 42 bits of randomness added), and therefore cannot be easily guessed by an attacker.
 
-The c# client code example correctly handles thread safety and clock roll back (using sequence numbering if the
-clock time goes backwards to allow for faster catch up). The pure SQL, ruby, and js examples set sequence to 0 or
-255, but you could instead use a random number here as well.
+In my opinion, partitioning the space by `node_id` and serializing the generation via a lock is overkill as there is no hardware in existence that can generate TUIDs fast enough to have any reasonable chance of a collision given the number of random bits in the TUID structure. This is why `generate_tuid_ar` and STUIDs are offered as well.  The `_ar` (all random) version replaces the node id and sequence number with randomness, resulting in 58 bits of randomness. The odds of a collision with 58 bits is 1:288,230,455,200,000,000. Even if you generate 1,000 TUIDs per millisecond (roughly as fast as my machine can) the odds of a collision only rise to 1:577,038,040,655. If you did that every second of the day (and actually had space to store the results, ~1.2GB/day for just the TUIDs) you'd start to reach the point where you'd need to move to STUIDs (with 196 bits of randomness). Very few applications are large enough to reach the point of requiring STUIDs for IDs.
 
-Even though the c# client code handles clock roll back you should assume multiple clients will be talking to the
-database and since each is using their own clock there will be drift in the prefixes; this will be true *even* if
-you use a time synchronization system (ntpd, etc.) as a true synchronization is impossible. Time drift is usually
-not a problem unless you're relying on the order of the ids to be absolutely ascending; if you are then use the
-pure sql or c extension and have the database create the ids centrally instead of doing it in the client.
+The c# client code example correctly handles thread safety and clock roll back (using sequence numbering if the clock time goes backwards to allow for faster catch up).
 
-The main benefit of generating ids in the client is the work is offloaded from the database and the client doesn't
-have to wait on the database to get ids for entries. That means you can create all the entries and their relations
-up front and submit them in a single batch, since the ids needed to setup the relationships are all generated
-locally on the client.
+Even though the c# client code handles clock roll back you should assume multiple clients will be talking to the database and since each is using their own clock there will be drift in the prefixes; this will be true *even* if you use a time synchronization system (NTPD, etc.) as a true synchronization is impossible. Time drift is usually not a problem unless you're relying on the order of the ids to be absolutely ascending. If you really need the IDs to be absolutely ascending user the pure SQL or C extension and have the database create the ids centrally instead of doing it in the client. This can still fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.
+
+The pure SQL, ruby, and js examples set sequence to 0 or 255, but you could instead edit these to use a random number here as well.
 
 ## issues
 
