@@ -57,9 +57,9 @@ DECLARE
   fx  BIGINT;
   ret VARCHAR;
 BEGIN
-  r3 := (random() * 4294967295 :: BIGINT) :: BIGINT;
-  seq := r3 & x'FF';
-  nid := (r3 >> 8) & 'FF';
+  r2 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+  seq := r2 & x'FF' :: INT;
+  nid := (r2 >> 8) & x'FF' :: INT;
   ct := extract(EPOCH FROM clock_timestamp() AT TIME ZONE 'utc') * 1000000;
   r0 := (random() * 4294967295 :: BIGINT) :: BIGINT;
   r1 := (random() * 4294967295 :: BIGINT) :: BIGINT;
