@@ -1,4 +1,106 @@
-CREATE EXTENSION IF NOT EXISTS tuid;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION tuid_generate()
+  RETURNS UUID AS $$
+DECLARE
+  ct  BIGINT;
+  seq BIGINT;
+  nid BIGINT;
+  r0  BIGINT;
+  r1  BIGINT;
+  ax  BIGINT;
+  bx  BIGINT;
+  cx  BIGINT;
+  dx  BIGINT;
+  ex  BIGINT;
+  fx  BIGINT;
+  ret VARCHAR;
+BEGIN
+  seq := 255;
+  nid := 255;
+  ct := extract(EPOCH FROM clock_timestamp() AT TIME ZONE 'utc') * 1000000;
+  r0 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+  r1 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+
+  ax := ct >> 32;
+  bx := ct >> 16 & x'FFFF' :: INT;
+  cx := x'4000' :: INT | ((ct >> 4) & x'0FFF' :: INT);
+  dx := x'8000' :: INT | ((ct & x'F' :: INT) << 10) | (seq << 2) | (nid >> 6);
+  ex := ((nid & x'3F' :: INT) << 2) | (r0 & x'3FF' :: INT);
+  fx := r1;
+
+  ret :=
+    LPAD(TO_HEX(ax),8,'0') ||
+    LPAD(TO_HEX(bx),4,'0') ||
+    LPAD(TO_HEX(cx),4,'0') ||
+    LPAD(TO_HEX(dx),4,'0') ||
+    LPAD(TO_HEX(ex),4,'0') ||
+    LPAD(TO_HEX(fx),8,'0');
+
+  return ret :: UUID;
+END;
+$$ LANGUAGE plpgsql;
+
+-- all random version
+CREATE OR REPLACE FUNCTION tuid_ar_generate()
+  RETURNS UUID AS $$
+DECLARE
+  ct  BIGINT;
+  seq BIGINT;
+  nid BIGINT;
+  r0  BIGINT;
+  r1  BIGINT;
+  r2  BIGINT;
+  ax  BIGINT;
+  bx  BIGINT;
+  cx  BIGINT;
+  dx  BIGINT;
+  ex  BIGINT;
+  fx  BIGINT;
+  ret VARCHAR;
+BEGIN
+  r2 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+  seq := r2 & x'FF' :: INT;
+  nid := (r2 >> 8) & x'FF' :: INT;
+  ct := extract(EPOCH FROM clock_timestamp() AT TIME ZONE 'utc') * 1000000;
+  r0 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+  r1 := (random() * 4294967295 :: BIGINT) :: BIGINT;
+
+  ax := ct >> 32;
+  bx := ct >> 16 & x'FFFF' :: INT;
+  cx := x'4000' :: INT | ((ct >> 4) & x'0FFF' :: INT);
+  dx := x'8000' :: INT | ((ct & x'F' :: INT) << 10) | (seq << 2) | (nid >> 6);
+  ex := ((nid & x'3F' :: INT) << 2) | (r0 & x'3FF' :: INT);
+  fx := r1;
+
+  ret :=
+    LPAD(TO_HEX(ax),8,'0') ||
+    LPAD(TO_HEX(bx),4,'0') ||
+    LPAD(TO_HEX(cx),4,'0') ||
+    LPAD(TO_HEX(dx),4,'0') ||
+    LPAD(TO_HEX(ex),4,'0') ||
+    LPAD(TO_HEX(fx),8,'0');
+
+  return ret :: UUID;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION stuid_generate()
+  RETURNS BYTEA
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  ct BIGINT;
+  ret BYTEA;
+BEGIN
+  ct := extract(EPOCH FROM clock_timestamp() AT TIME ZONE 'utc') * 1000000;
+  ret := decode(LPAD(TO_HEX(ct),16,'0'),'hex') || gen_random_bytes(24);
+  RETURN ret;
+END;
+$$;
 
 DROP TABLE IF EXISTS tx_history CASCADE;
 DROP TABLE IF EXISTS test CASCADE;
@@ -49,83 +151,100 @@ DECLARE
 BEGIN
   -- history of table data for test
   EXECUTE FORMAT('
+  DROP TABLE IF EXISTS %I.%I;
   CREATE TABLE %I.%I (
-    entry %I.%I
-  ) INHERITS (%I.tx_history);', schema_name, table_name || '_history', schema_name, table_name, schema_name);
+    entry JSONB
+  ) INHERITS (%I.tx_history);',
+    schema_name, table_name || '_h' ,
+    schema_name, table_name || '_h',
+    schema_name);
+
+  EXECUTE FORMAT('
+    CREATE INDEX %I ON %I.%I (id, entry);
+  ',
+    table_name || '_hi', schema_name, table_name || '_h'
+  );
 
   -- don't allow any edits to history
   EXECUTE FORMAT('
+    DROP TRIGGER IF EXISTS %I ON %I.%I;
     CREATE TRIGGER %I
     BEFORE UPDATE OR DELETE OR TRUNCATE
     ON %I.%I
     EXECUTE PROCEDURE prevent_change();
-  ', table_name || '_nochng', schema_name, table_name || '_history');
+  ', table_name || '_no', schema_name, table_name || '_h', table_name || '_no', schema_name, table_name || '_h');
 
   EXECUTE FORMAT($FUNC$
+  DROP FUNCTION IF EXISTS %I.%I();
   CREATE OR REPLACE FUNCTION %I.%I()
-  RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $X$
-DECLARE
-  who VARCHAR;
-  txid BIGINT;
-BEGIN
-  SELECT current_setting('audit.user')
-  INTO who;
-  IF who IS NULL OR who = ''
-  THEN
-    RAISE EXCEPTION 'audit.user is not set.';
-  END IF;
-
-  txid = txid_current_if_assigned();
-  IF txid IS NOT NULL
-  THEN
-    txid = TXID_SNAPSHOT_XMIN(txid_current_snapshot());
-  ELSE
-    txid = txid_current();
-  END IF;
-
-  IF tg_op = 'UPDATE'
-  THEN
-    IF (OLD.%I != NEW.%I)
+    RETURNS TRIGGER
+  LANGUAGE plpgsql
+  AS $X$
+  DECLARE
+    who VARCHAR;
+    txid BIGINT;
+  BEGIN
+    SELECT current_setting('audit.user')
+    INTO who;
+    IF who IS NULL OR who = ''
     THEN
-      RAISE EXCEPTION 'id cannot be changed';
+      RAISE EXCEPTION 'audit.user is not set.';
     END IF;
 
-    INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (NEW.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'U', NEW);
-    RETURN NEW;
-  END IF;
+    txid = txid_current_if_assigned();
+    IF txid IS NOT NULL
+    THEN
+      txid = TXID_SNAPSHOT_XMIN(txid_current_snapshot());
+    ELSE
+      txid = txid_current();
+    END IF;
 
-  IF tg_op = 'INSERT'
-  THEN
-    INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (NEW.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'I', NEW);
-    RETURN NEW;
-  END IF;
+    IF tg_op = 'UPDATE'
+    THEN
+      IF (OLD.%I != NEW.%I)
+      THEN
+        RAISE EXCEPTION 'id cannot be changed';
+      END IF;
 
-  IF tg_op = 'DELETE'
-  THEN
-    INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (OLD.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'D', OLD);
-    RETURN OLD;
-  END IF;
+      INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (NEW.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'U', to_jsonb(NEW));
+      RETURN NEW;
+    END IF;
 
-  RETURN NULL;
-END;
-$X$;
+    IF tg_op = 'INSERT'
+    THEN
+      INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (NEW.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'I', to_jsonb(NEW));
+      RETURN NEW;
+    END IF;
+
+    IF tg_op = 'DELETE'
+    THEN
+      INSERT INTO %I.%I (id, table_schema, table_name, txid, who, op, entry) VALUES (OLD.%I, TG_TABLE_SCHEMA, TG_TABLE_NAME, txid, who, 'D', to_jsonb(OLD));
+      RETURN OLD;
+    END IF;
+
+    RETURN NULL;
+  END;
+  $X$;
   $FUNC$,
     schema_name, table_name || '_htrig',
+    schema_name, table_name || '_htrig',
     id_column_name, id_column_name,
-    schema_name, table_name || '_history', id_column_name,
-    schema_name, table_name || '_history', id_column_name,
-    schema_name, table_name || '_history', id_column_name
+    schema_name, table_name || '_h', id_column_name,
+    schema_name, table_name || '_h', id_column_name,
+    schema_name, table_name || '_h', id_column_name
   );
 
   -- hook up the trigger
   EXECUTE FORMAT('
+  DROP TRIGGER IF EXISTS %I ON %I.%I;
   CREATE TRIGGER %I
     BEFORE UPDATE OR DELETE OR INSERT
     ON %I.%I
     FOR EACH ROW EXECUTE PROCEDURE %I.%I();
-  ', table_name || '_tracked', schema_name, table_name, schema_name, table_name || '_htrig');
+  ', table_name || '_tracked', schema_name, table_name || '_htrig',
+    table_name || '_tracked',
+    schema_name, table_name,
+    schema_name, table_name || '_htrig');
 END;
 $$;
 
@@ -183,5 +302,4 @@ COMMIT;
 
 SELECT *
 FROM tx_history;
-
 
