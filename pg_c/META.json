@@ -1,0 +1,51 @@
+{
+   "name": "tuid",
+   "abstract": "UUIDs prefixed with time",
+   "description": "Provides a generally monotonically ascending UUIDv4 compatable ID.",
+   "version": "0.0.3",
+   "maintainer": [
+      "Cliff Hammerschmidt <cliff@hammerschmidt.ca>"
+   ],
+   "license": "MIT",
+   "provides": {
+      "pg_tuid": {
+         "abstract": "A generally monotonically ascending UUIDv4 compatable ID.",
+         "file": "pg_c/tuid--0.0.3.sql",
+         "docfile": "pc_g/tuid.mmd",
+         "version": "0.0.3"
+      }
+   },
+   "prereqs": {
+      "runtime": {
+         "requires": {
+            "PostgreSQL": "10.0.0"
+         }
+      },
+      "test": {
+         "requires": {
+            "plpgsql": 0
+        }
+      }
+   },
+   "resources": {
+      "bugtracker": {
+         "web": "https://github.com/tanglebones/pg_tuid/issues/"
+      },
+      "repository": {
+        "url":  "git://github.com/tanglebones/pg_tuid.git",
+        "web":  "https://github.com/tanglebones/pg_tuid/",
+        "type": "git"
+      }
+   },
+   "generated_by": "Cliff Hammerschmidt",
+   "meta-spec": {
+      "version": "1.0.0",
+      "url": "http://pgxn.org/meta/spec.txt"
+   },
+   "tags": [
+      "UUID",
+      "Identifier",
+      "ID"
+   ]
+}
+
