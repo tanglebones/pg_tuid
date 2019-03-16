@@ -7,7 +7,7 @@ the time since epoch in microseconds, a sequence number (if generating more then
 waiting for clock rollback to catch up), and node id.
 
 ## Why use a TUID instead of a UUIDv4?
-UUIDv4 is completely random, so if you have a table with a lot of entries using UUIDv4 in an index it leads to
+UUIDv4 is mostly random, so if you have a table with a lot of entries using UUIDv4 in an index it leads to
 some performance issues. The main issue is new rows being inserted can cause an update to an index in a random
 location. This defeats caching of index entries. By ensuring the ids are generally monotonically increasing
 the entries added will be locally at the "head" of the index and multiple inserts will benefit from cache
