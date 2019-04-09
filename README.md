@@ -28,7 +28,7 @@ relatively slow.
 
 `stuid_generate()` returns a 32 byte bytea with 64 bits of time prefix (microseconds) and 192 bits of randomness, i.e. a "Secure" TUID. This is enough randomness for use in session ids (consider storing session ids in an unlogged table, and consider using a hash index for the lookup).
 
-## installing
+## Installing
 
 `make install` and then edit your `postgresql.conf` file, adding:
 
