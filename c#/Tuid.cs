@@ -13,7 +13,6 @@ namespace Tuid
 
         public Generator(ulong nid = 255, Func<ulong> clock = null, Func<ulong> random = null)
         {
-            _nid = nid & 0xff;
             _clock = clock;
             _random = random;
 
@@ -21,6 +20,10 @@ namespace Tuid
                 _clock = DefaultClock;
             if (random == null)
                 _random = DefaultRandom;
+            _nid = nid;
+            if (_nid > 255) {
+              _nid = _random() & 0xff;
+            }
         }
 
         private static readonly DateTime Epoch =
@@ -45,9 +48,10 @@ namespace Tuid
         public string Generate()
         {
             var us = _clock();
+            var rand1 = _random();
             lock (_lock)
             {
-                if (us < _last)
+                if (us <= _last)
                 {
                     if (_seq >= 0xff)
                     {
@@ -61,15 +65,14 @@ namespace Tuid
                 }
                 else
                 {
-                    _seq = 0;
+                    _seq = (rand1 >> 12) & 0xff;
                     _last = us;
                 }
             }
-            var rand1 = _random();
             var a = _last >> 32;
             var b = (_last >> 16) & 0xffff;
             var c = 0x4000 | ((_last >> 4) & 0x0fff);
-            var d = 0x8000 | ((_last & 0xf) << 10) | (_seq << 2);
+            var d = 0x8000 | ((_last & 0xf) << 10) | (_seq << 2) | (_nodeId >> 6);
             var e = ((_nid & 0x3f) << 2) | (rand1 & 0x3ff);
             var f = rand1>>32;
             return $"{a:x08}-{b:x04}-{c:x04}-{d:x04}-{e:x04}{f:x08}";
