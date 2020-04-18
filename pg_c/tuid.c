@@ -295,7 +295,7 @@ tuid_ar_generate(PG_FUNCTION_ARGS)
     b = (t_us>>16)&0xffff; /* time bits 31..16 */
     c = 0x4000 | (((t_us>>4)&0x0fff)); /* 0100b | time bits 15..4 */
     d = 0x8000 | ((t_us&0xf)<<10) | (seq<<2) | ( node_id>>6); /* 10b | time bits 3..0 | seq bits 7..0 | node_id bits 7..6 */
-    e = ((node_id&0x3f)<<2) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
+    e = ((node_id&0x3f)<<10) | (rand1&0x3ff); /* node_id bits 5..0 | rand1 bits 10..0 */
     f = rand2; /* 32 bits of rand2 */
 
     /*
