@@ -26,7 +26,7 @@ BEGIN
   ax := ct >> 32;
   bx := ct >> 16 & x'FFFF' :: INT;
   cx := x'4000' :: INT | ((ct >> 4) & x'0FFF' :: INT);
-  dx := x'8000' :: INT | ((ct & x'F' :: INT) << 10) | ((r0 & x'3F'::INT) >> 6);
+  dx := x'8000' :: INT | ((ct & x'F' :: INT) << 10) | ((r0 >> 6) & x'3F' :: INT);
 
   ret :=
     LPAD(TO_HEX(ax),8,'0') ||
