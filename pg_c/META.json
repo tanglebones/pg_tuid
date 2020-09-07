@@ -2,7 +2,7 @@
    "name": "tuid",
    "abstract": "UUIDs prefixed with time",
    "description": "Provides a generally monotonically ascending UUIDv4 compatable ID.",
-   "version": "0.1.0",
+   "version": "0.2.0",
    "maintainer": [
       "Cliff Hammerschmidt <cliff@hammerschmidt.ca>"
    ],
@@ -10,15 +10,15 @@
    "provides": {
       "pg_tuid": {
          "abstract": "A generally monotonically ascending UUIDv4 compatable ID.",
-         "file": "pg_c/tuid--0.1.0.sql",
+         "file": "pg_c/tuid--0.2.0.sql",
          "docfile": "pc_g/tuid.mmd",
-         "version": "0.1.0"
+         "version": "0.2.0"
       }
    },
    "prereqs": {
       "runtime": {
          "requires": {
-            "PostgreSQL": "10.0.0"
+            "PostgreSQL": "13.0.0"
          }
       },
       "test": {

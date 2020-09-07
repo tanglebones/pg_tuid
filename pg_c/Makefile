@@ -1,7 +1,11 @@
-EXTENSION = tuid        # the extensions name
-DATA = tuid--0.1.0.sql  # script files to install
-REGRESS = tuid_test     # our test script file (without extension)
-MODULES = tuid          # our c module file to build
+MODULE_big = tuid
+OBJS = \
+	tuid.o \
+	isaac.o
+
+EXTENSION = tuid
+DATA = tuid--0.2.0.sql
+PGFILEDESC = "tuid - time prefix UUIDv4"
 
 # postgres build stuff
 PG_CFLAGS = -O3

@@ -1,5 +1,5 @@
 # tuid extension
 comment = 'tuid datatype'
-default_version = '0.1.0'
+default_version = '0.2.0'
 module_pathname = '$libdir/tuid'
 relocatable = true

@@ -35,6 +35,12 @@ multi-deployment application and want to move data between two deployments you c
 "Secure" TUID. This is enough randomness for use in session ids (consider storing session ids in an unlogged table, and
 consider using a hash index for the lookup).
 
+
+## RNG's
+
+As of versoin `0.2.0` I'm using `isaac64` for the RNG instead of pg's secure random number generator as it is much
+faster and ID generation doesn't need to be cryptographically secure, just reasonably secure.
+
 ## Installing
 
     `make install`
@@ -64,3 +70,50 @@ you're relying on the order of the ids to be absolutely ascending. If you really
 use the C extension and have the database create the ids centrally instead of doing it in the client. *This can still 
 fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.*
 
+## Performance of "pg_c" version 0.2.0
+
+The test creates 100k rows in a table using a default id generator swapping `$ALGO/$TYPE` in the below:
+
+```
+BEGIN;
+
+CREATE TABLE x(
+  id $TYPE default $ALGO primary key,
+  n numeric
+);
+
+EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+
+SELECT * FROM x LIMIT 10;
+
+ROLLBACK;
+```
+
+On my laptop running in pg12beta2 I get:
+
+```
+gen_random_uuid    | 1344 - 1400ms  | ~72.8k rows/s
+stuid_generate     |  790 -  917ms  | ~111k  rows/s
+tuid_generate      |  675 -  728ms  | ~142k  rows/s
+bigserial          |  647 -  724ms  | ~146k  rows/s
+```
+
+Placing `tuid_generate` around the same speed (just slightly slower) as `bigserial`.
+
+Upping n to 10 million I get:
+
+```
+gen_random_uuid    | 218750ms  | ~47.0k rows/s
+stuid_generate     |  86866ms  | ~115k  rows/s
+tuid_generate      |  76705ms  | ~130k  rows/s
+bigserial          |  70681ms  | ~141k  rows/s
+```
+
+- `gen_random_uuid` drops to 64.6% of its 100k rate.
+- `stuid_generate` got better? (probably just noise?)
+- `tuid_generate` drops to 91.5% of its 100k rate.
+- `bigserial` drops to 96.5% of its 100k rate.
+
+So, as expected purely random UUIDs scale badly and using the time prefix does help mitigate the performance impact.
+I suspect `bigserial` is showing better primary because `bigint` is smaller than `uuid` allowing for more data per
+page of memory. Still `tuid`s are performing at over 90% of the speed of `bigserial` at the 10 million row mark.

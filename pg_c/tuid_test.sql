@@ -3,14 +3,24 @@ CREATE EXTENSION pgcrypto;
 DROP EXTENSION IF EXISTS tuid;
 CREATE EXTENSION tuid;
 
+-- just to make sure they all work and produce different results in a single statement
 SELECT gen_random_uuid(), gen_random_uuid();
-EXPLAIN ANALYSE SELECT gen_random_uuid() FROM generate_series(1, 100000);
-
 SELECT tuid_generate(), tuid_generate();
-EXPLAIN ANALYSE SELECT tuid_generate() FROM generate_series(1, 100000);
-
 SELECT stuid_generate(), stuid_generate();
-EXPLAIN ANALYSE SELECT stuid_generate() FROM generate_series(1, 100000);
+
+-- gen_random_uuid
+BEGIN;
+
+CREATE TABLE x(
+  id uuid not null default gen_random_uuid() primary key,
+  n numeric
+);
+
+EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+
+SELECT * FROM x LIMIT 10;
+
+ROLLBACK;
 
 BEGIN;
 
@@ -21,6 +31,23 @@ CREATE TABLE x(
 
 EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
 
+SELECT * FROM x LIMIT 10;
+
+ROLLBACK;
+
+-- tuid_generate
+
+BEGIN;
+
+CREATE TABLE x(
+  id uuid not null default tuid_generate() primary key,
+  n numeric
+);
+
+EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+
+SELECT * FROM x LIMIT 10;
+
 ROLLBACK;
 
 BEGIN;
@@ -32,16 +59,21 @@ CREATE TABLE x(
 
 EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
 
+SELECT * FROM x LIMIT 10;
+
 ROLLBACK;
 
+-- stuid_generate
 BEGIN;
 
 CREATE TABLE x(
-  id uuid not null default tuid_generate() primary key,
+  id bytea not null default stuid_generate() primary key,
   n numeric
 );
 
 EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+
+SELECT * FROM x LIMIT 10;
 
 ROLLBACK;
 
@@ -54,18 +86,11 @@ CREATE TABLE x(
 
 EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
 
-ROLLBACK;
-BEGIN;
-
-CREATE TABLE x(
-  id bytea not null default stuid_generate() primary key,
-  n numeric
-);
-
-EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+SELECT * FROM x LIMIT 10;
 
 ROLLBACK;
 
+-- bigserial
 
 BEGIN;
 
@@ -78,7 +103,6 @@ EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
 
 ROLLBACK;
 
-
 BEGIN;
 
 CREATE TABLE x(
@@ -87,5 +111,21 @@ CREATE TABLE x(
 );
 
 EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 100000) s(n);
+
+SELECT * FROM x LIMIT 10;
+
+ROLLBACK;
+
+----------------------------------------------------------------------------------------
+BEGIN;
+
+CREATE TABLE x(
+  id uuid not null default tuid_generate() primary key,
+  n numeric
+);
+
+EXPLAIN ANALYSE INSERT INTO x (n) SELECT n FROM generate_series(1, 10000000) s(n);
+
+SELECT * FROM x LIMIT 10;
 
 ROLLBACK;
