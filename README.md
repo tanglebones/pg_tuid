@@ -89,7 +89,7 @@ SELECT * FROM x LIMIT 10;
 ROLLBACK;
 ```
 
-On my laptop running in pg12beta2 I get:
+On my laptop running in pg13beta2 I get:
 
 ```
 gen_random_uuid    | 1344 - 1400ms  | ~72.8k rows/s
@@ -117,3 +117,66 @@ bigserial          |  70681ms  | ~141k  rows/s
 So, as expected purely random UUIDs scale badly and using the time prefix does help mitigate the performance impact.
 I suspect `bigserial` is showing better primary because `bigint` is smaller than `uuid` allowing for more data per
 page of memory. Still `tuid`s are performing at over 90% of the speed of `bigserial` at the 10 million row mark.
+
+## Updated for 0.3.0
+
+Seeding the RNG was incorrect in 0.2.0, fixed in 0.3.0.
+
+I've also added a script to test via `pgbench` so the impact of multiple clients creating ids at the same time
+could be investigated.
+ 
+Relevant output from my laptop:
+
+```
+... (tuid first 12.8 million)
+transaction type: bench_tuid.sql
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 4
+number of transactions per client: 16
+number of transactions actually processed: 128/128
+latency average = 5794.685 ms
+tps = 1.380576 (including connections establishing)
+tps = 1.380647 (excluding connections establishing)
+... (bigserial first 12.8 million)
+transaction type: bench_bigserial.sql
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 4
+number of transactions per client: 16
+number of transactions actually processed: 128/128
+latency average = 5295.499 ms
+tps = 1.510717 (including connections establishing)
+tps = 1.510796 (excluding connections establishing)
+... (bigserial second 12.8 million)
+transaction type: bench_bigserial.sql
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 4
+number of transactions per client: 16
+number of transactions actually processed: 128/128
+latency average = 5386.250 ms
+tps = 1.485263 (including connections establishing)
+tps = 1.485338 (excluding connections establishing)
+... (tuid second 12.8 million)
+transaction type: bench_tuid.sql
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 4
+number of transactions per client: 16
+number of transactions actually processed: 128/128
+latency average = 5857.807 ms
+tps = 1.365699 (including connections establishing)
+tps = 1.365765 (excluding connections establishing)
+```
+
+Each "transaction" here is doing 100k inserts into a table. For the first run the final size of the table
+is 12.8 million entries, and the second run adds another 12.8 million entries.
+
+This shows `bigserial` as being _slower_ than and using `tuid_generate`. I suspect this is because `bigserial`
+requires a lock across processes to ensure uniqueness, where `tuid_generate` uses a per-process RNG and
+avoids locks.

@@ -12,7 +12,7 @@ Bob Jenkins, 1996, Public Domain
 #define ISAAC64_RANDSIZL   (8)
 #define ISAAC64_RANDSIZ    (1<<ISAAC64_RANDSIZL)
 
-ub8 isaac64_randrsl[ISAAC64_RANDSIZ], isaac64_randcnt;
+extern ub8 isaac64_randrsl[ISAAC64_RANDSIZ], isaac64_randcnt;
 
 /*
 ------------------------------------------------------------------------------

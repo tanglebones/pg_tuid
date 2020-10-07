@@ -5,6 +5,7 @@
 #include "utils/builtins.h"
 #include "utils/uuid.h"
 #include "isaac.h"
+#include "miscadmin.h"
 
 PG_MODULE_MAGIC;
 
@@ -48,12 +49,19 @@ static uint64 get_current_unix_time_us() {
 #endif
 
 
-void _PG_init(void) {
-    elog(LOG, "pg_tuid init");
-    for (uint64 i = 0; i < isaac64_randcnt; ++i) {
-        isaac64_randrsl[i] = get_current_unix_time_us() ^ (i << 32);
+void init_rand(void);
+
+void init_rand(void) {
+    uint64 *seed = (uint64 *) isaac64_randrsl;
+    for (uint64 i = 0; i < ISAAC64_RANDSIZL; ++i) {
+        seed[i] = get_current_unix_time_us() ^ (i << 32) ^ MyProcPid;
     }
     isaac64_randinit();
+}
+
+void _PG_init(void) {
+    elog(LOG, "pg_tuid init");
+    init_rand();
 }
 
 void _PG_fini(void) {
@@ -89,7 +97,7 @@ tuid_generate(PG_FUNCTION_ARGS) {
     buffer[6] = (0x40 | (t_us >> 12));
     buffer[7] = (t_us >> 4);
 
-    ((uint64*)buffer)[1] = r;
+    ((uint64 *) buffer)[1] = r;
 
     buffer[8] = (0x80 | ((t_us & 0xf) << 10) | (r & 0x3));
     buffer[9] = (r >> 2);
@@ -116,9 +124,9 @@ stuid_generate(PG_FUNCTION_ARGS) {
     vd[6] = us >> 8;
     vd[7] = us;
 
-    ((uint64*)vd)[1] = isaac64_rand();
-    ((uint64*)vd)[2] = isaac64_rand();
-    ((uint64*)vd)[3] = isaac64_rand();
+    ((uint64 *) vd)[1] = isaac64_rand();
+    ((uint64 *) vd)[2] = isaac64_rand();
+    ((uint64 *) vd)[3] = isaac64_rand();
 
     PG_RETURN_BYTEA_P(res);
 }

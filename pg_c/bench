@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+psql -p 5413 < bench_setup.sql
+pgbench -p 5413 -t 16 -c 8 -j 4 -f bench_tuid.sql
+pgbench -p 5413 -t 16 -c 8 -j 4 -f bench_bigserial.sql
+pgbench -p 5413 -t 16 -c 8 -j 4 -f bench_bigserial.sql
+pgbench -p 5413 -t 16 -c 8 -j 4 -f bench_tuid.sql

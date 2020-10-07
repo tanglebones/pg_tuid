@@ -4,7 +4,7 @@ OBJS = \
 	isaac.o
 
 EXTENSION = tuid
-DATA = tuid--0.2.0.sql
+DATA = tuid--0.3.0.sql
 PGFILEDESC = "tuid - time prefix UUIDv4"
 
 # postgres build stuff

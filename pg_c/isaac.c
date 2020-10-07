@@ -7,7 +7,7 @@ By Bob Jenkins, 1996.  Public Domain.
 #include "standard.h"
 #include "isaac.h"
 
-extern ub8 isaac64_randrsl[ISAAC64_RANDSIZ], isaac64_randcnt;
+ub8 isaac64_randrsl[ISAAC64_RANDSIZ], isaac64_randcnt;
 static ub8 mm[ISAAC64_RANDSIZ];
 static ub8 aa = 0, bb = 0, cc = 0;
 
@@ -22,7 +22,6 @@ static ub8 aa = 0, bb = 0, cc = 0;
 
 void isaac64(void) {
     register ub8 a, b, x, y, *m, *m2, *r, *mend;
-    m = mm;
     r = isaac64_randrsl;
     a = aa;
     b = bb + (++cc);
