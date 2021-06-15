@@ -94,7 +94,7 @@ tuid_generate(PG_FUNCTION_ARGS) {
     buffer[4] = (t_us >> 24);
     buffer[5] = (t_us >> 16);
 
-    buffer[6] = (0x40 | (t_us >> 12));
+    buffer[6] = (0x40 | ((t_us >> 12)&0xf));
     buffer[7] = (t_us >> 4);
 
     ((uint64 *) buffer)[1] = r;
