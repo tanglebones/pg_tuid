@@ -77,12 +77,12 @@ to store the results, ~1.2GB/day for just the TUIDs) you'd start to reach the po
 (with 196 bits of randomness). Very few applications are large enough to reach the point of requiring STUIDs for general
 purpose IDs.
 
-The code does not handle clock roll back, and you should assume multiple clients will be talking to the database and
-since each is using their own clock there will be drift in the prefixes; this will be true *even* if you use a time 
-synchronization system (NTPD, etc.) as a true synchronization is impossible. Time drift is usually not a problem unless
-you're relying on the order of the ids to be absolutely ascending. If you really need the IDs to be absolutely ascending
-use the C extension and have the database create the ids centrally instead of doing it in the client. *This can still 
-fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.*
+The non-pg code to generate tuids client side does not handle clock roll back, and you should assume multiple clients
+will be talking to the database and since each is using their own clock there will be drift in the prefixes; this will
+be true *even* if you use a time synchronization system (NTPD, etc.) as a true synchronization is impossible. Time drift
+is usually not a problem unless you're relying on the order of the ids to be absolutely ascending. If you really need
+the IDs to be absolutely ascending use the database create the ids centrally instead of doing it in the client.
+*This can still fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.*
 
 # older stuff for pre-tuid6
 
