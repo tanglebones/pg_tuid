@@ -25,6 +25,67 @@ worrying about aliasing. I.e. if you want to copy a customer and all of their as
 testing environment you can easily do so as none of the ids will be present in the testing environment. If you have a 
 multi-deployment application and want to move data between two deployments you can avoid re-writing the ids. etc.
 
+## `tuid6.sql` is the latest iteration.
+
+It's just plpgsql, so you can use it on aiven.io/azure/RDS/etc.
+It ignores version bits, since nothing seems to care about those anyways.
+
+`tuid6()` returns a UUID with millisecond prefix (takes exactly 16 bytes)
+
+```
+select tuid6();
+> 01838572-52b2-1e3a-51ab-119d5607e35e
+```
+
+`tuid6_to_compact(uuid)` returns the base64url encoded form (takes 22+ bytes)
+```
+select tuid6_to_compact(tuid6());
+> AYOFdhN7r5ymN75rjTKvbg
+```
+
+`tuid6_from_compact` reverses `tuid6_to_compact`
+```
+select tuid6_from_compact('AYOFdhN7r5ymN75rjTKvbg');
+> 01838576-137b-af9c-a637-be6b8d32af6e
+```
+
+`tuid6_tz` extracts the timestamptz from the tuid6.
+```
+select tuid6_tz(tuid6_from_compact('AYOFdhN7r5ymN75rjTKvbg'));
+> 2022-09-28 18:57:31.515000 +00:00
+```
+
+`stuid` is a larger version stored in a `bytea`
+```
+select stuid();
+> 0x01838586AEC20FE1143C2DF065459F7FF869FB8B71B697FDFE355E60A5CCDE61
+select stuid_to_compact(stuid()); 
+> AYOFhq7l3Wd34RGyviWg3vB4W5tQk1oIyna2kUajIpg
+select stuid_from_compact(stuid_to_compact(stuid()));
+> 0x01838586AF27F79BB34C1F71C18FECE7B2478CCFAD9C1ADBFCE695E8750AB0F2
+select stuid_tz(stuid_from_compact(stuid_to_compact(stuid())));
+> 2022-09-28 19:15:40.012000 +00:00
+```
+
+# Discussion
+
+In my opinion, there is no hardware in existence that can generate TUIDs fast enough to have any reasonable chance of a
+collision given the number of random bits in the TUID structure. The odds of a collision with 58 bits of randomness is
+`1:288,230,455,200,000,000`. Even if you generate 1,000 TUIDs per millisecond (roughly as fast as my machine can) the
+odds of a collision only rise to `1:577,038,040,655`. If you did that every second of the day (and actually had space
+to store the results, ~1.2GB/day for just the TUIDs) you'd start to reach the point where you'd need to move to STUIDs
+(with 196 bits of randomness). Very few applications are large enough to reach the point of requiring STUIDs for general
+purpose IDs.
+
+The code does not handle clock roll back, and you should assume multiple clients will be talking to the database and
+since each is using their own clock there will be drift in the prefixes; this will be true *even* if you use a time 
+synchronization system (NTPD, etc.) as a true synchronization is impossible. Time drift is usually not a problem unless
+you're relying on the order of the ids to be absolutely ascending. If you really need the IDs to be absolutely ascending
+use the C extension and have the database create the ids centrally instead of doing it in the client. *This can still 
+fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.*
+
+# older stuff for pre-tuid6
+
 ## tuid_generate()
 
 `tuid_generate()` returns a new TUID, which you can store in a `uuid` field.
@@ -41,7 +102,7 @@ consider using a hash index for the lookup).
 As of versoin `0.2.0` I'm using `isaac64` for the RNG instead of pg's secure random number generator as it is much
 faster and ID generation doesn't need to be cryptographically secure, just reasonably secure.
 
-## Installing
+## Installing the `pg_c` version.
 
     `make install`
 
@@ -53,22 +114,6 @@ to enable the extension in your schema.
 
 After that `tuid_generate()` and `stuid_generate` will be available.
 
-## Discussion
-
-In my opinion, there is no hardware in existence that can generate TUIDs fast enough to have any reasonable chance of a
-collision given the number of random bits in the TUID structure. The odds of a collision with 58 bits of randomness is
-`1:288,230,455,200,000,000`. Even if you generate 1,000 TUIDs per millisecond (roughly as fast as my machine can) the
-odds of a collision only rise to `1:577,038,040,655`. If you did that every second of the day (and actually had space
-to store the results, ~1.2GB/day for just the TUIDs) you'd start to reach the point where you'd need to move to STUIDs
-(with 196 bits of randomness). Very few applications are large enough to reach the point of requiring STUIDs for general
-purpose IDs.
-
-The code does not handle clock roll back, and you should assume multiple clients will be talking to the database and
-since each is using their own clock there will be drift in the prefixes; this will be true *even* if you use a time 
-synchronization system (NTPD, etc.) as a true synchronization is impossible. Time drift is usually not a problem unless
-you're relying on the order of the ids to be absolutely ascending. If you really need the IDs to be absolutely ascending
-use the C extension and have the database create the ids centrally instead of doing it in the client. *This can still 
-fail if the DB is restarted in conjunction with the DBs clock being shifted backward in time.*
 
 ## Performance of "pg_c" version 0.2.0
 
