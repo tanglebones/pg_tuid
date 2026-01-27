@@ -1,6 +1,11 @@
 # pg_tuid
 tuid_generate() function for postgres
 
+**Postgres 18 has this native now!**
+```
+select uuidv7();
+```
+
 ## What is this?
 A TUID is like a UUID (it conforms to UUID v4) but instead of being fully random (except for 6 bits for the version)
 it is prefixed with the time since epoch in microseconds.
